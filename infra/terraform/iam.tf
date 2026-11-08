@@ -112,7 +112,7 @@ resource "google_storage_bucket_iam_member" "construccion_lee_fuente" {
 
 # GitHub Actions puede «actuar como» las cuentas de ejecución al desplegar y lanzar builds.
 resource "google_service_account_iam_member" "despliegue_actua_como" {
-  for_each           = toset(["ingesta", "tablero", "simulador", "construccion"])
+  for_each           = toset(["ingesta", "tablero", "simulador", "corte", "construccion"])
   service_account_id = google_service_account.sa[each.value].name
   role               = "roles/iam.serviceAccountUser"
   member             = "serviceAccount:${google_service_account.sa["despliegue"].email}"
