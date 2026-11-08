@@ -6,3 +6,4 @@ infra/terraform/*.tfstate*
 infra/terraform/terraform.tfvars
 *.db
 .env
+docs/guia/

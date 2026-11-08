@@ -5,7 +5,9 @@ WITH t AS (
          COUNT(*) AS filas, COUNT(DISTINCT evento_id) AS eventos_unicos,
          MIN(fcnt) AS fcnt_min, MAX(fcnt) AS fcnt_max,
          AVG(confianza) AS confianza_media, MIN(bateria_v) AS bateria_min,
-         APPROX_QUANTILES(TIMESTAMP_DIFF(recibido, medido, MILLISECOND), 100)[OFFSET(95)] AS demora_p95_ms
+         -- Las filas cargadas en lote (historia) tienen «recibido» muy posterior a «medido»: no son demora real.
+         APPROX_QUANTILES(IF(TIMESTAMP_DIFF(recibido, medido, MINUTE) < 60,
+                             TIMESTAMP_DIFF(recibido, medido, MILLISECOND), NULL), 100)[OFFSET(95)] AS demora_p95_ms
   FROM `${p}.ecocentinela.telemetria`
   WHERE invernadero != 'PRUEBA DE CARGA'
   GROUP BY dia, nodo_id
