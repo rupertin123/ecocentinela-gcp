@@ -54,11 +54,16 @@ flowchart LR
 | **Rolling 24 h window**, provisional for the first 12 h | A single 15-minute window holds only 0–2 captures, so it is pure noise. |
 | **Pub/Sub → BigQuery subscription** (no Dataflow) | Writes directly to BigQuery with no code or workers, and stays within the free tier. Dataflow would be the choice for complex streaming transforms. |
 | **BigQuery ML ARIMA_PLUS** instead of an LSTM | It handles short hourly series, trains in seconds, runs serverless with SQL, and gives one model per node with `time_series_id_col`. |
+| Retrain **weekly**, forecast **daily** | Model creation is the only BigQuery ML step outside the free tier (USD 312.50/TiB, about 30 MiB per run). `ML.FORECAST` counts as prediction, which is inside the 1 TiB free tier. |
 | **Cloud Run** scales to zero; `max_instances` capped | No traffic costs nothing, and a public page cannot run up a bill. |
 | WebSocket sessions closed after 10 min | An open WebSocket keeps a Cloud Run instance billable. |
 | Budget measures **gross cost** (`EXCLUDE_ALL_CREDITS`) | During the free trial, credits make net cost zero, so a net-cost budget would never fire. |
 | `us-central1` | One of the three regions where Cloud Storage's free tier applies. Latency does not matter for 15-minute telemetry. |
 | Gemini on a **separate project without billing** | The free tier of the Gemini API can never generate charges there. |
+
+## Cost
+
+Gross cost is about **USD 0.05 per month**, measured before credits: roughly USD 0.04 for the weekly model training and USD 0.002 for the Pub/Sub BigQuery subscription (USD 50/TiB, no free tier). The free-trial credit covers it. Everything else runs inside the Google Cloud free tier. A USD 1 budget on **gross** cost triggers an automatic billing kill switch.
 
 ## Numbers
 

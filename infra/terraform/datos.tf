@@ -64,15 +64,28 @@ resource "google_bigquery_table" "calidad" {
   depends_on = [google_bigquery_table.telemetria, google_bigquery_table.rechazos]
 }
 
-# Reentrenamiento diario del pronóstico (BigQuery ML ARIMA_PLUS) con una consulta programada.
+# BigQuery ML: el modelo se reentrena una vez por semana (crear modelos no entra en el nivel gratuito)
+# y el pronóstico se recalcula todos los días con ML.FORECAST (predicción: sí entra en el TiB gratis).
+resource "google_bigquery_data_transfer_config" "entrenamiento" {
+  display_name         = "Entrenamiento semanal ARIMA_PLUS"
+  location             = "US"
+  data_source_id       = "scheduled_query"
+  schedule             = "every monday 08:30" # 05:30 en Argentina
+  service_account_name = google_service_account.sa["bqml"].email
+  params = {
+    query = templatefile("${path.module}/../../sql/entrenar_modelo.sql", { p = var.proyecto })
+  }
+  depends_on = [google_service_account_iam_member.dts_usa_bqml, google_bigquery_dataset_iam_member.escritores]
+}
+
 resource "google_bigquery_data_transfer_config" "pronostico" {
-  display_name         = "Pronostico diario de mosca blanca (ARIMA_PLUS)"
+  display_name         = "Pronostico diario de mosca blanca (ML.FORECAST)"
   location             = "US"
   data_source_id       = "scheduled_query"
   schedule             = "every day 09:00" # 06:00 en Argentina
   service_account_name = google_service_account.sa["bqml"].email
   params = {
-    query = templatefile("${path.module}/../../sql/entrenar_y_pronosticar.sql", { p = var.proyecto })
+    query = templatefile("${path.module}/../../sql/pronosticar.sql", { p = var.proyecto })
   }
   depends_on = [google_service_account_iam_member.dts_usa_bqml, google_bigquery_dataset_iam_member.escritores]
 }
