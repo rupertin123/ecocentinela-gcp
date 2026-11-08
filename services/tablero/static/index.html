@@ -172,9 +172,11 @@ function pintar(f){
   $("consola").innerHTML = bit.map(l => `<div class="${l.startsWith("[CRITICAL") ? "c" : "i"}">${l.replace(/[<>&]/g,"")}</div>`).join("") || "<div class='i'>Waiting for uplinks…</div>";
   const mapa = e.mapa_ocupacion || 0;
   $("mapa").innerHTML = Array.from({length:16},(_,i)=>`<div class="celda ${(mapa>>i)&1 ? "on":""}"></div>`).join("");
-  $("notaPron").textContent = f.cruce_pronosticado
-    ? `BigQuery ML forecast: threshold expected to be crossed around ${fmtHora(f.cruce_pronosticado)}.`
-    : "BigQuery ML forecast (ARIMA_PLUS): no threshold crossing expected in the next 48 h.";
+  $("notaPron").textContent = supera
+    ? (f.cruce_pronosticado ? "BigQuery ML forecast (ARIMA_PLUS): density stays above the action threshold over the next 48 h unless there is an intervention."
+                            : "BigQuery ML forecast (ARIMA_PLUS): density expected to fall back below the threshold within 48 h.")
+    : (f.cruce_pronosticado ? `BigQuery ML forecast (ARIMA_PLUS): threshold expected to be crossed around ${fmtHora(f.cruce_pronosticado)}.`
+                            : "BigQuery ML forecast (ARIMA_PLUS): no threshold crossing expected in the next 48 h.");
 }
 
 async function cargarHistoria(){

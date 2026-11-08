@@ -163,7 +163,8 @@ def _bateria(v: float, t: datetime, rng: random.Random) -> float:
     """Carga solar de día (variable según nubosidad) y consumo de noche. [SUPUESTO]"""
     h = t.astimezone(ZONA_AR).hour
     if 9 <= h <= 17:
-        return min(4.15, v + 0.010 * rng.uniform(0.1, 1.0))
+        # 9 h de sol x 4 pasos: recupera en promedio ~0,30 V, más que los ~0,24 V que consume de noche.
+        return min(4.15, v + 0.012 * rng.uniform(0.4, 1.0))
     return max(3.30, v - 0.004)
 
 

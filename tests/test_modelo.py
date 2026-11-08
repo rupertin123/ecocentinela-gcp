@@ -35,3 +35,11 @@ def test_perdida_evitada():
 
 def test_doce_nodos_ficticios():
     assert len(m.NODOS) == 12 and len({n.id for n in m.NODOS}) == 12
+
+
+def test_bateria_solar_no_se_descarga_en_primavera():
+    rng = random.Random(5)
+    t0 = datetime(2026, 10, 9, tzinfo=timezone.utc)
+    e = m.EstadoNodo(densidad=1.0, ultimo=t0, bateria_v=4.0)
+    m.paso(e, t0 + timedelta(days=30), rng)
+    assert e.bateria_v > 3.7

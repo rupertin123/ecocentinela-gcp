@@ -6,6 +6,8 @@
 
 **Live dashboard:** https://tablero-5kylw2oqmq-uc.a.run.app
 
+![Dashboard](docs/tablero_agente.png)
+
 ---
 
 ## What it does
@@ -61,7 +63,7 @@ flowchart LR
 ## Numbers
 
 - **Load test (Kubernetes, local kind cluster):** 500 uplinks in 3.5 s (144/s), p95 212 ms, 100 % accepted.
-- **Load test (Cloud Run):** see `docs/` and the PDF guide.
+- **Load test (Cloud Run, 1,000 virtual nodes):** 1,000/1,000 accepted at 50/s; p50 113 ms, p95 770 ms, p99 5.3 s (cold start of the second instance under the `max_instances = 2` cost cap). About 45,000 uplinks per 15-minute window, roughly 3,800 times the fleet's real load.
 - **History:** 30 days × 12 nodes × 96 uplinks/day = 34,560 rows, loaded with free batch load jobs.
 - **Data migration:** legacy SQLite (from the original proof of concept) → BigQuery, reconciled by row count and checksum.
 
