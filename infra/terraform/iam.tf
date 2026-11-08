@@ -147,3 +147,10 @@ resource "google_service_account_iam_member" "github_usa_despliegue" {
   role               = "roles/iam.workloadIdentityUser"
   member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.repo_github}"
 }
+
+# «gcloud builds submit» primero consulta los metadatos del bucket (storage.buckets.get).
+resource "google_storage_bucket_iam_member" "despliegue_ve_bucket" {
+  bucket = google_storage_bucket.construccion.name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:${google_service_account.sa["despliegue"].email}"
+}
