@@ -1,0 +1,35 @@
+# Construye y publica las imágenes de los 4 servicios en Artifact Registry.
+# Uso: gcloud builds submit --config cloudbuild.yaml --substitutions _VERSION=v1 ...
+steps:
+  - id: pruebas
+    name: python:3.12-slim
+    entrypoint: bash
+    args: ["-c", "pip install -q -r services/ingesta/requirements.txt pytest httpx && python -m pytest -q tests"]
+  - id: ingesta
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REPO}/ingesta:${_VERSION}", "-f", "services/ingesta/Dockerfile", "."]
+    waitFor: ["pruebas"]
+  - id: tablero
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REPO}/tablero:${_VERSION}", "-f", "services/tablero/Dockerfile", "."]
+    waitFor: ["pruebas"]
+  - id: simulador
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REPO}/simulador:${_VERSION}", "-f", "services/simulador/Dockerfile", "."]
+    waitFor: ["pruebas"]
+  - id: corte
+    name: gcr.io/cloud-builders/docker
+    args: ["build", "-t", "${_REPO}/corte:${_VERSION}", "-f", "services/corte/Dockerfile", "."]
+    waitFor: ["pruebas"]
+images:
+  - ${_REPO}/ingesta:${_VERSION}
+  - ${_REPO}/tablero:${_VERSION}
+  - ${_REPO}/simulador:${_VERSION}
+  - ${_REPO}/corte:${_VERSION}
+substitutions:
+  _REPO: us-central1-docker.pkg.dev/ecocentinela-rio-cuarto/ecocentinela
+  _VERSION: v1
+options:
+  logging: CLOUD_LOGGING_ONLY   # sin bucket de registros (no es gratis fuera de las 3 regiones)
+  machineType: E2_STANDARD_2    # la máquina incluida en los 2.500 minutos gratis
+timeout: 1200s

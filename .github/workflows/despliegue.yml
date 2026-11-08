@@ -1,0 +1,48 @@
+# Despliegue continuo: cada push a main construye las imágenes y actualiza Cloud Run.
+# Sin claves guardadas: GitHub se autentica con Workload Identity Federation (token OIDC de corta duración).
+name: Despliegue
+on:
+  push:
+    branches: [main]
+    paths: ["services/**", "common/**", "tests/**", "cloudbuild.yaml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write   # necesario para pedir el token OIDC de GitHub
+concurrency: despliegue
+env:
+  PROYECTO: ecocentinela-rio-cuarto
+  REGION: us-central1
+  WIF: projects/519941513668/locations/global/workloadIdentityPools/github/providers/github-oidc
+  CUENTA: eco-despliegue@ecocentinela-rio-cuarto.iam.gserviceaccount.com
+jobs:
+  desplegar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ env.WIF }}
+          service_account: ${{ env.CUENTA }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Construir imágenes (Cloud Build)
+        run: |
+          VERSION=${GITHUB_SHA::7}
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          gcloud builds submit --config cloudbuild.yaml --region $REGION \
+            --substitutions _VERSION=$VERSION \
+            --gcs-source-staging-dir gs://$PROYECTO-construccion/fuente \
+            --service-account projects/$PROYECTO/serviceAccounts/eco-construccion@$PROYECTO.iam.gserviceaccount.com \
+            --suppress-logs .
+      - name: Desplegar en Cloud Run
+        run: |
+          R=$REGION-docker.pkg.dev/$PROYECTO/ecocentinela
+          for s in ingesta tablero; do
+            gcloud run deploy $s --image $R/$s:$VERSION --region $REGION --quiet
+          done
+          gcloud run deploy corte-facturacion --image $R/corte:$VERSION --region $REGION --quiet
+          gcloud run jobs update simulador --image $R/simulador:$VERSION --region $REGION --quiet
+      - name: Prueba de humo
+        run: |
+          URL=$(gcloud run services describe tablero --region $REGION --format 'value(status.url)')
+          curl -fsS "$URL/salud"

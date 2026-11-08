@@ -1,0 +1,83 @@
+# EcoCentinela en Kubernetes: los mismos contenedores que corren en Cloud Run.
+# Sirve para mostrar portabilidad (Cloud Run está construido sobre Knative/Kubernetes)
+# y se prueba gratis en un clúster local con kind. En GKE se aplicaría igual.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecocentinela
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingesta
+  namespace: ecocentinela
+  labels: {app: ingesta}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: ingesta}
+  template:
+    metadata:
+      labels: {app: ingesta}
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+      containers:
+        - name: ingesta
+          image: eco-ingesta:local
+          imagePullPolicy: IfNotPresent
+          ports: [{containerPort: 8080}]
+          env:
+            - {name: MODO_LOCAL, value: "1"}   # en el clúster local no hay Pub/Sub ni Firestore
+          resources:
+            requests: {cpu: 100m, memory: 128Mi}
+            limits: {cpu: 500m, memory: 256Mi}
+          readinessProbe:
+            httpGet: {path: /salud, port: 8080}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /salud, port: 8080}
+            periodSeconds: 15
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingesta
+  namespace: ecocentinela
+spec:
+  selector: {app: ingesta}
+  ports: [{port: 80, targetPort: 8080}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ingesta
+  namespace: ecocentinela
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: ingesta}
+  minReplicas: 2
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prueba-carga
+  namespace: ecocentinela
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: simulador
+          image: eco-simulador:local
+          imagePullPolicy: IfNotPresent
+          args: ["--modo", "carga", "--n", "500", "--hilos", "16"]
+          env:
+            - {name: URL_INGESTA, value: "http://ingesta.ecocentinela.svc.cluster.local"}
