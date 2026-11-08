@@ -154,3 +154,11 @@ resource "google_storage_bucket_iam_member" "despliegue_ve_bucket" {
   role   = "roles/storage.legacyBucketReader"
   member = "serviceAccount:${google_service_account.sa["despliegue"].email}"
 }
+
+# «gcloud run deploy» verifica que la imagen exista antes de desplegar.
+resource "google_artifact_registry_repository_iam_member" "despliegue_lee" {
+  repository = google_artifact_registry_repository.imagenes.name
+  location   = var.region
+  role       = "roles/artifactregistry.reader"
+  member     = "serviceAccount:${google_service_account.sa["despliegue"].email}"
+}
