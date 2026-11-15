@@ -3,5 +3,5 @@ google-auth==2.62.1
 google-cloud-firestore==2.34.1
 google-cloud-bigquery==3.47.0
 google-cloud-pubsub==2.43.0
-fastapi==0.162.2
+fastapi==0.162.5
 httpx==0.28.1
