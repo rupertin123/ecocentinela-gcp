@@ -1,16 +1,31 @@
-# Avisa y propone actualizaciones de seguridad de las dependencias.
+# Actualizaciones de dependencias: UN pull request por ecosistema y por semana (no uno por paquete y servicio),
+# sólo versiones menores y parches. Los saltos de versión mayor (Python 3.15, proveedor de Terraform 8,
+# acciones v3+) se hacen a mano porque pueden romper compatibilidad. Las alertas y los PR de SEGURIDAD de
+# Dependabot no dependen de esta configuración y siguen activos para todo.
 version: 2
 updates:
   - package-ecosystem: pip
     directories: ["/services/ingesta", "/services/tablero", "/services/simulador", "/services/corte"]
     schedule: {interval: weekly}
-    open-pull-requests-limit: 5
+    groups:
+      python:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: "/"
-    schedule: {interval: weekly}
-  - package-ecosystem: docker
-    directories: ["/services/ingesta", "/services/tablero", "/services/simulador", "/services/corte"]
     schedule: {interval: monthly}
+    groups:
+      acciones:
+        patterns: ["*"]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: terraform
     directory: "/infra/terraform"
     schedule: {interval: monthly}
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
