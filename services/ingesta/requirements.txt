@@ -1,4 +1,4 @@
-fastapi==0.162.2
+fastapi==0.162.5
 uvicorn[standard]==0.54.0
-google-cloud-pubsub==2.43.0
+google-cloud-pubsub==2.44.0
 google-cloud-firestore==2.34.1
