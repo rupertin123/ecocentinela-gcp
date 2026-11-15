@@ -93,7 +93,7 @@ function pintarDetalle(d) {
   $("nodos").innerHTML = d.nodos.map(n => `<div class="nodo"><b>${esc(n.id)}</b><br>${num(n.densidad_est)} ${esc(e.unidad || "")}
     <br>last photo: ${n.conteo_imagen ?? "—"} detected · conf ${num(n.confianza)}<br>${num(n.bateria_v)} V · RSSI ${n.rssi ?? "—"} dBm · ${fmt(n.medido)}
     <div class="mapa">${Array.from({length: 16}, (_, i) => `<div class="celda ${((n.mapa_ocupacion || 0) >> i) & 1 ? "on" : ""}"></div>`).join("")}</div></div>`).join("");
-  const lineas = d.nodos.flatMap(n => (n.bitacora || []).map(l => [l.slice(l.indexOf(" ") + 1, l.indexOf("]")), `${n.id} ${l}`)));
+  const lineas = d.nodos.flatMap(n => (n.bitacora || []).map(l => [l.slice(l.indexOf(" ") + 1, l.indexOf("]")), `${n.id} ${l}`]));
   lineas.sort((a, b) => b[0].localeCompare(a[0]));
   $("consola").innerHTML = lineas.slice(0, 40).map(([, l]) => `<div class="${l.includes("[CRITICAL") ? "c" : l.includes("[WARN") ? "w" : "i"}">${esc(l)}</div>`).join("") || "<div class='i'>Waiting for uplinks…</div>";
   graficoDensidad(d, e);

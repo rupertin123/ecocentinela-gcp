@@ -71,3 +71,15 @@ def test_websocket_rechaza_otro_origen(tablero):
     with pytest.raises(Exception):
         with cli.websocket_connect("/ws/telemetria", headers={"origin": "https://malicioso.example"}) as ws:
             ws.receive_text()
+
+
+def test_el_javascript_del_tablero_compila():
+    """Un error de sintaxis en app.js deja el tablero vacío sin que falle ninguna API (pasó el 15/11/2026)."""
+    import shutil
+    import subprocess
+
+    if not shutil.which("node"):
+        pytest.skip("node no está instalado")
+    r = subprocess.run(["node", "--check", os.path.join(RAIZ, "services", "tablero", "static", "app.js")],
+                       capture_output=True, text=True)
+    assert r.returncode == 0, r.stderr
