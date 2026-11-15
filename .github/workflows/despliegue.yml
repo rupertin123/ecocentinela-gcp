@@ -1,5 +1,8 @@
 # Despliegue continuo: cada push a main construye las imágenes y actualiza Cloud Run.
 # Sin claves guardadas: GitHub se autentica con Workload Identity Federation (token OIDC de corta duración).
+# En Google Cloud, el proveedor de identidad sólo acepta tokens de ESTE repositorio (por su ID numérico, que no
+# cambia aunque alguien cree otro repositorio con el mismo nombre) y de la rama main. Los pull requests de forks
+# no ejecutan este flujo. Los identificadores de abajo no son secretos: sin ese token no sirven para nada.
 name: Despliegue
 on:
   push:
@@ -19,12 +22,14 @@ jobs:
   desplegar:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: google-github-actions/auth@v2
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: google-github-actions/auth@c200f3691d83b41bf9bbd8638997a462592937ed # v2
         with:
           workload_identity_provider: ${{ env.WIF }}
           service_account: ${{ env.CUENTA }}
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@e427ad8a34f8676edf47cf7d7925499adf3eb74f # v2
       - name: Construir imágenes (Cloud Build)
         run: |
           VERSION=${GITHUB_SHA::7}
@@ -37,7 +42,7 @@ jobs:
       - name: Desplegar en Cloud Run
         run: |
           R=$REGION-docker.pkg.dev/$PROYECTO/ecocentinela
-          for s in ingesta tablero; do
+          for s in ingesta tablero; do  # la imagen se despliega por versión (SHA del commit)
             gcloud run deploy $s --image $R/$s:$VERSION --region $REGION --quiet
           done
           gcloud run deploy corte-facturacion --image $R/corte:$VERSION --region $REGION --quiet

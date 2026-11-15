@@ -4,7 +4,7 @@
 resource "google_bigquery_dataset" "eco" {
   dataset_id    = "ecocentinela"
   location      = "US"
-  description   = "Telemetría de la flota simulada de EcoCentinela (Río Cuarto)"
+  description   = "Telemetría de la flota simulada de EcoCentinela (soja, Río Cuarto) y análisis de eficacia residual"
   friendly_name = "EcoCentinela"
   depends_on    = [google_project_service.apis]
 }
@@ -52,6 +52,38 @@ resource "google_bigquery_table" "telemetria_limpia" {
   depends_on = [google_bigquery_table.telemetria]
 }
 
+resource "google_bigquery_table" "aplicaciones" {
+  dataset_id          = google_bigquery_dataset.eco.dataset_id
+  table_id            = "aplicaciones"
+  description         = "Aplicaciones de insecticida que el productor registró en el tablero (sin datos personales)."
+  deletion_protection = false
+  schema              = file("${path.module}/esquemas/aplicaciones.json")
+}
+
+resource "google_bigquery_table" "eficacia_puntos" {
+  dataset_id          = google_bigquery_dataset.eco.dataset_id
+  table_id            = "eficacia_puntos"
+  description         = "Eficacia observada hora por hora de cada aplicación frente a un testigo virtual."
+  deletion_protection = false
+  view {
+    use_legacy_sql = false
+    query          = templatefile("${path.module}/../../sql/eficacia_puntos.sql", { p = var.proyecto })
+  }
+  depends_on = [google_bigquery_table.telemetria_limpia, google_bigquery_table.aplicaciones]
+}
+
+resource "google_bigquery_table" "eficacia_residual" {
+  dataset_id          = google_bigquery_dataset.eco.dataset_id
+  table_id            = "eficacia_residual"
+  description         = "Ajuste E(t)=E0*exp(-k*t) por aplicación y fecha estimada en que el lote queda descubierto."
+  deletion_protection = false
+  view {
+    use_legacy_sql = false
+    query          = templatefile("${path.module}/../../sql/eficacia_residual.sql", { p = var.proyecto })
+  }
+  depends_on = [google_bigquery_table.eficacia_puntos]
+}
+
 resource "google_bigquery_table" "calidad" {
   dataset_id          = google_bigquery_dataset.eco.dataset_id
   table_id            = "calidad_diaria"
@@ -79,7 +111,7 @@ resource "google_bigquery_data_transfer_config" "entrenamiento" {
 }
 
 resource "google_bigquery_data_transfer_config" "pronostico" {
-  display_name         = "Pronostico diario de mosca blanca (ML.FORECAST)"
+  display_name         = "Pronostico diario de plagas por estrato (ML.FORECAST)"
   location             = "US"
   data_source_id       = "scheduled_query"
   schedule             = "every day 09:00" # 06:00 en Argentina
@@ -132,6 +164,23 @@ resource "google_pubsub_subscription" "rechazos_a_bigquery" {
   topic = google_pubsub_topic.rechazos.id
   bigquery_config {
     table               = "${var.proyecto}.${google_bigquery_dataset.eco.dataset_id}.${google_bigquery_table.rechazos.table_id}"
+    use_table_schema    = true
+    drop_unknown_fields = true
+  }
+  depends_on = [google_bigquery_dataset_iam_member.pubsub_escribe]
+}
+
+resource "google_pubsub_topic" "aplicaciones" {
+  name                       = "aplicaciones"
+  message_retention_duration = "86400s"
+  depends_on                 = [google_project_service.apis]
+}
+
+resource "google_pubsub_subscription" "aplicaciones_a_bigquery" {
+  name  = "aplicaciones-a-bigquery"
+  topic = google_pubsub_topic.aplicaciones.id
+  bigquery_config {
+    table               = "${var.proyecto}.${google_bigquery_dataset.eco.dataset_id}.${google_bigquery_table.aplicaciones.table_id}"
     use_table_schema    = true
     drop_unknown_fields = true
   }

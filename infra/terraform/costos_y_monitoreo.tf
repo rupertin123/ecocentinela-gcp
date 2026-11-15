@@ -11,9 +11,13 @@ resource "google_billing_budget" "tope" {
   display_name    = "EcoCentinela - tope ${var.presupuesto} ${var.moneda}"
   budget_filter {
     projects = ["projects/${data.google_project.p.number}"]
-    # Durante la prueba gratuita, el crédito cubre todo y el costo «neto» es siempre 0:
-    # hay que medir el costo BRUTO (sin créditos) para que el tope sirva de algo.
-    credit_types_treatment = "EXCLUDE_ALL_CREDITS"
+    # Qué se mide: el costo que se pagaría DESPUÉS de la prueba gratuita.
+    # * Se descuentan el nivel gratuito permanente (FREE_TIER) y los descuentos automáticos.
+    # * NO se descuenta el crédito promocional de la prueba (PROMOTION): si no, el costo sería siempre 0.
+    # Lección del 15/11/2026: con EXCLUDE_ALL_CREDITS el presupuesto contaba como gasto el uso que entra en
+    # el nivel gratuito (USD 1,24 «brutos» contra USD 0,19 reales en medio mes) y disparó la alerta del 90 %.
+    credit_types_treatment = "INCLUDE_SPECIFIED_CREDITS"
+    credit_types           = ["FREE_TIER", "SUSTAINED_USAGE_DISCOUNT", "DISCOUNT"]
     calendar_period        = "MONTH"
   }
   amount {
@@ -126,12 +130,13 @@ resource "google_monitoring_alert_policy" "sin_datos" {
   display_name = "La flota dejo de transmitir"
   combiner     = "OR"
   conditions {
-    display_name = "Sin uplinks aceptados durante 45 min"
+    # Los nodos sólo fotografían de 7 a 20 h: de noche hay 11 h sin datos por diseño, no es una falla.
+    display_name = "Sin uplinks aceptados durante 13 h"
     condition_absent {
       filter   = "metric.type=\"logging.googleapis.com/user/${google_logging_metric.uplinks.name}\" AND resource.type=\"cloud_run_revision\""
-      duration = "2700s"
+      duration = "46800s"
       aggregations {
-        alignment_period   = "900s"
+        alignment_period   = "3600s"
         per_series_aligner = "ALIGN_SUM"
       }
     }

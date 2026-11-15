@@ -1,0 +1,13 @@
+[
+  {"name": "aplicacion_id", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "estrato", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "plaga", "type": "STRING", "mode": "REQUIRED"},
+  {"name": "producto", "type": "STRING", "mode": "REQUIRED", "description": "Código del catálogo (principio activo, nunca marca)"},
+  {"name": "principio_activo", "type": "STRING", "mode": "NULLABLE"},
+  {"name": "aplicada_en", "type": "TIMESTAMP", "mode": "REQUIRED", "description": "Cuándo dice el productor que aplicó"},
+  {"name": "registrada", "type": "TIMESTAMP", "mode": "NULLABLE", "description": "Cuándo lo registró en el tablero"},
+  {"name": "origen", "type": "STRING", "mode": "NULLABLE", "description": "tablero (productor autenticado) o historia (datos de demostración)"},
+  {"name": "ciclo", "type": "INTEGER", "mode": "NULLABLE", "description": "Campaña simulada"},
+  {"name": "e0_bibliografia", "type": "FLOAT", "mode": "NULLABLE"},
+  {"name": "k_bibliografia", "type": "FLOAT", "mode": "NULLABLE"}
+]

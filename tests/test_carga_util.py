@@ -17,7 +17,7 @@ def test_json_de_la_poc_original_no_entraba():
     assert len(c.json_equivalente(LECTURA, "ESP32-CAM-DELTA-4")) > 51
 
 
-@pytest.mark.parametrize("malo", [b"", b"\x10" * 9, b"\x20" + b"\x00" * 9])
+@pytest.mark.parametrize("malo", [b"", b"\x20" * 9, b"\x10" + b"\x00" * 9, b"\x30" + b"\x00" * 9])  # vacía, corta, v1 (vieja), v3
 def test_rechaza_cargas_invalidas(malo):
     with pytest.raises(c.CargaInvalida):
         c.decodificar(malo)
@@ -25,4 +25,4 @@ def test_rechaza_cargas_invalidas(malo):
 
 def test_valores_extremos_se_acotan():
     l = c.decodificar(c.codificar(c.Lectura(99999, 1.7, 500, -3, 9, 0)))
-    assert l.adultos_trampa == 65535 and l.confianza == 1.0 and l.humedad_suelo_pct == 0
+    assert l.conteo == 65535 and l.confianza == 1.0 and l.humedad_rel_pct == 0

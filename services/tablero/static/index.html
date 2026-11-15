@@ -4,109 +4,97 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EcoCentinela Telemetry</title>
-<meta name="description" content="EcoCentinela: simulated LoRaWAN + Edge AI whitefly monitoring for the Río Cuarto green belt, running on Google Cloud.">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<style>
-:root{--bg:#0b0d10;--card:#151a21;--borde:#232a33;--txt:#cfdbd5;--blanco:#f4f5f0;--verde:#2cff05;--rojo:#ff4d4d;--gris:#8a96a3}
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.45 "Helvetica Neue",Arial,sans-serif}
-.envoltura{max-width:1280px;margin:0 auto;padding:24px 16px 48px}
-header{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
-h1{color:var(--blanco);font-size:30px;margin:0}
-.sub{color:var(--gris);font-size:13px;margin-top:4px}
-button{font:inherit;cursor:pointer;border-radius:8px}
-.btn-sec{background:var(--card);border:1px solid var(--borde);color:var(--blanco);padding:10px 16px;font-weight:600}
-.conexion{margin:16px 0;padding:6px 12px;border:1px solid var(--borde);border-radius:6px;font-size:12px;color:var(--gris);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.punto{width:9px;height:9px;border-radius:50%;background:var(--gris);display:inline-block}
-.punto.ok{background:var(--verde);box-shadow:0 0 6px var(--verde)}
-.punto.mal{background:var(--rojo)}
-select{background:var(--card);color:var(--blanco);border:1px solid var(--borde);border-radius:6px;padding:4px 8px;font:inherit;font-size:12px}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-.kpi{background:var(--card);border-radius:10px;border-left:4px solid var(--verde);padding:16px 20px}
-.kpi.alerta{border-left-color:var(--rojo)}
-.kpi .et{font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--gris)}
-.kpi .val{font-size:28px;font-weight:700;color:var(--blanco);margin:6px 0 2px}
-.kpi .delta{font-size:12px;color:var(--verde)}
-.kpi.alerta .delta{color:var(--rojo)}
-hr{border:0;border-top:1px solid var(--borde);margin:24px 0}
-.grilla{display:grid;grid-template-columns:2fr 1fr;gap:20px}
-.panel{background:var(--card);border-radius:10px;padding:18px 20px}
-.panel h3{margin:0 0 12px;color:var(--blanco);font-size:15px}
-.nota{font-size:12px;color:var(--rojo);margin-top:6px}
-.nota.gris{color:var(--gris)}
-.chip{display:inline-block;background:#3a1416;color:var(--rojo);border-radius:6px;padding:3px 10px;font-size:12px;font-weight:600;margin:4px 0 12px}
-.chip.ok{background:#12301a;color:var(--verde)}
-.btn-rojo{width:100%;background:#ef4444;border:0;color:#fff;font-weight:700;padding:14px;letter-spacing:.02em}
-.btn-rojo:disabled{background:#3b3f45;color:var(--gris);cursor:not-allowed}
-.btn-borde{width:100%;margin-top:10px;background:transparent;border:1px solid var(--borde);color:var(--blanco);padding:10px}
-.consola{background:#0b0d10;border-radius:6px;padding:10px;height:230px;overflow-y:auto;font:12px/1.6 ui-monospace,Menlo,Consolas,monospace}
-.consola .c{color:var(--rojo)} .consola .i{color:var(--verde)}
-.mapa{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;background:#0b0d10;border:1px solid var(--borde);border-radius:6px;padding:8px;aspect-ratio:4/1.3}
-.celda{border-radius:3px;background:#12161c;position:relative}
-.celda.on::after{content:"";position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:var(--verde);box-shadow:0 0 8px var(--verde)}
-.pie{margin-top:28px;font-size:12px;color:var(--gris)}
-dialog{background:var(--card);color:var(--txt);border:1px solid var(--borde);border-radius:10px;max-width:640px;width:calc(100% - 32px)}
-dialog h3{color:var(--blanco);margin-top:0}
-dialog table{width:100%;border-collapse:collapse;font-size:13px}
-dialog td{border-bottom:1px solid var(--borde);padding:6px 4px;vertical-align:top}
-dialog td:first-child{color:var(--gris);width:42%}
-.lado{display:flex;flex-direction:column;gap:20px}
-@media (max-width:900px){.kpis{grid-template-columns:repeat(2,1fr)}.grilla{grid-template-columns:1fr}}
-@media (max-width:520px){.kpis{grid-template-columns:1fr}h1{font-size:23px}}
-</style>
+<meta name="description" content="EcoCentinela: simulated Edge AI + LoRaWAN pest monitoring for a soybean field near Río Cuarto (Argentina), running on Google Cloud.">
+<link rel="stylesheet" href="/static/estilo.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+<script src="/static/app.js" defer></script>
 </head>
 <body>
 <div class="envoltura">
   <header>
     <div>
-      <h1>🌱 EcoCentinela: Edge AI Telemetry</h1>
-      <div class="sub">Simulated fleet · Río Cuarto green belt (Córdoba, AR) · LoRaWAN AU915 (ChirpStack format, 10-byte binary payload) · Google Cloud</div>
+      <h1>🌱 EcoCentinela: Edge AI Pest Telemetry</h1>
+      <div class="sub">Simulated soybean field · Río Cuarto (Córdoba, AR) · 12 ESP32-CAM nodes at 3 canopy heights · LoRaWAN AU915 (10-byte payload) · Google Cloud</div>
     </div>
-    <button class="btn-sec" onclick="document.getElementById('specs').showModal()">⚙️ Hardware Specs</button>
+    <div class="cabecera-der">
+      <div id="sesion"></div>
+      <button class="btn-sec" id="btnSpecs">⚙️ Hardware Specs</button>
+    </div>
   </header>
 
   <div class="conexion">
     <span id="punto" class="punto"></span><span id="estadoWs">Connecting…</span>
-    <span style="margin-left:auto">Node:</span><select id="selNodo"></select>
+    <span class="reloj" id="reloj"></span>
   </div>
 
   <section class="kpis">
-    <div class="kpi" id="kNodo"><div class="et">Node status (ESP32-CAM)</div><div class="val">—</div><div class="delta">—</div></div>
-    <div class="kpi" id="kTemp"><div class="et">Foliar temperature</div><div class="val">—</div><div class="delta">—</div></div>
-    <div class="kpi" id="kBat"><div class="et">Node battery</div><div class="val">—</div><div class="delta">—</div></div>
-    <div class="kpi" id="kAhorro"><div class="et">Lost profit saved (est.)</div><div class="val">—</div><div class="delta">—</div></div>
+    <div class="kpi" id="kEstadio"><div class="et">Crop stage (simulated season)</div><div class="val">—</div><div class="delta">—</div></div>
+    <div class="kpi" id="kFlota"><div class="et">Fleet status (ESP32-CAM)</div><div class="val">—</div><div class="delta">—</div></div>
+    <div class="kpi" id="kTemp"><div class="et">Air temperature</div><div class="val">—</div><div class="delta">—</div></div>
+    <div class="kpi" id="kBat"><div class="et">Lowest node battery</div><div class="val">—</div><div class="delta">—</div></div>
   </section>
   <hr>
+
+  <section class="planta-y-estratos">
+    <div class="panel planta">
+      <h3>📷 One camera per pest, at the height where it lives</h3>
+      <svg id="svgPlanta" viewBox="0 0 300 330" role="img" aria-label="Soybean plant with three cameras at 75, 45 and 15 cm">
+        <line x1="150" y1="310" x2="150" y2="40" class="tallo"/>
+        <g class="hojas">
+          <ellipse cx="120" cy="60" rx="34" ry="12" transform="rotate(-20 120 60)"/><ellipse cx="182" cy="66" rx="34" ry="12" transform="rotate(20 182 66)"/>
+          <ellipse cx="116" cy="140" rx="38" ry="13" transform="rotate(-15 116 140)"/><ellipse cx="186" cy="150" rx="38" ry="13" transform="rotate(15 186 150)"/>
+          <ellipse cx="112" cy="232" rx="40" ry="13" transform="rotate(-10 112 232)"/><ellipse cx="190" cy="240" rx="40" ry="13" transform="rotate(10 190 240)"/>
+          <ellipse cx="160" cy="105" rx="7" ry="16" class="vaina"/><ellipse cx="140" cy="185" rx="7" ry="16" class="vaina"/>
+        </g>
+        <line x1="10" y1="310" x2="290" y2="310" class="suelo"/>
+        <line x1="40" y1="310" x2="40" y2="40" class="mastil"/>
+        <g id="camsup" class="cam"><rect x="28" y="72" width="24" height="16" rx="3"/><text x="58" y="70">75 cm · upper</text></g>
+        <g id="cammed" class="cam"><rect x="28" y="162" width="24" height="16" rx="3"/><text x="58" y="160">45 cm · middle</text></g>
+        <g id="caminf" class="cam"><rect x="28" y="252" width="24" height="16" rx="3"/><text x="58" y="250">15 cm · lower</text></g>
+        <text x="150" y="326" text-anchor="middle" class="pie-svg">soil level · mast with 3 nodes (×4 masts in the field)</text>
+      </svg>
+    </div>
+    <div class="estratos" id="estratos"></div>
+  </section>
 
   <section class="grilla">
     <div class="lado">
       <div class="panel">
-        <h3>🦟 Population dynamics — <i>T. vaporariorum</i></h3>
-        <div style="position:relative;height:300px"><canvas id="grafico"></canvas></div>
-        <div class="nota">— INTA action threshold: 10 adults/leaf (Polack &amp; Mitidieri, 2005). Leaf density is estimated from yellow sticky-trap counts.</div>
+        <h3 id="tituloDens">Population dynamics</h3>
+        <div class="lienzo"><canvas id="grafDens"></canvas></div>
+        <div class="nota" id="notaUmbral"></div>
         <div class="nota gris" id="notaPron"></div>
       </div>
       <div class="panel">
-        <h3>📍 FOMO occupancy map — sticky trap, last uplink (4×4 grid)</h3>
-        <div class="mapa" id="mapa"></div>
+        <h3>🧪 Residual efficacy of the last application (BigQuery analysis)</h3>
+        <div class="lienzo chico"><canvas id="grafEf"></canvas></div>
+        <div class="nota gris" id="notaEf">No application registered for this pest in the current season.</div>
+      </div>
+      <div class="panel">
+        <h3>📍 Nodes of this stratum (FOMO occupancy map of the last photo, 4×4 grid)</h3>
+        <div class="nodos" id="nodos"></div>
       </div>
     </div>
     <div class="lado">
       <div class="panel">
-        <h3>Edge AI Mitigation</h3>
-        <div style="color:var(--gris);font-size:14px" id="txtMit">—</div>
+        <h3>Spray recommendation</h3>
+        <div id="txtRec" class="txt-rec">—</div>
         <span class="chip" id="chip">—</span>
-        <button class="btn-rojo" id="btnMit">🟢 QUANTIFY SAVINGS &amp; REQUEST MITIGATION</button>
-        <button class="btn-borde" id="btnRecargar">↺ Reload data</button>
-        <div class="nota gris" id="msgMit"></div>
+        <div id="formAplicacion" class="form-apl">
+          <label>Active ingredient <select id="selProducto" disabled></select></label>
+          <label>Applied at <input type="datetime-local" id="fechaApl"></label>
+          <label>Note (optional) <input id="notaApl" maxlength="200" placeholder="e.g. ground sprayer, 120 L/ha"></label>
+          <button class="btn-rojo" id="btnApl">✅ I APPLIED IT — START RESIDUAL TRACKING</button>
+        </div>
+        <div class="nota gris" id="msgApl"></div>
       </div>
       <div class="panel">
         <h3>🤖 Agronomist agent (Gemini)</h3>
-        <form id="formAgente" style="display:flex;gap:8px">
-          <input id="pregunta" maxlength="300" placeholder="e.g. ¿Hace falta intervenir en este invernadero?" style="flex:1;min-width:0;background:#0b0d10;color:var(--blanco);border:1px solid var(--borde);border-radius:6px;padding:8px;font:inherit;font-size:13px">
+        <form id="formAgente" class="form-agente">
+          <input id="pregunta" maxlength="300" placeholder="e.g. ¿Cuándo queda descubierto el lote para la oruga?">
           <button class="btn-sec" type="submit">Ask</button>
         </form>
-        <div id="respAgente" style="font-size:13px;margin-top:10px;white-space:pre-wrap"></div>
+        <div id="respAgente" class="resp-agente"></div>
         <div id="pasosAgente" class="nota gris"></div>
       </div>
       <div class="panel">
@@ -116,122 +104,23 @@ dialog td:first-child{color:var(--gris);width:42%}
     </div>
   </section>
 
-  <div class="pie">Conceptual project: no physical nodes or customers. Sensor data are generated every 15 min by a simulated fleet of 12 nodes in fictitious greenhouses, using Río Cuarto climate normals (SMN 1991–2020) and greenhouse-whitefly development parameters (Greenberg et al., 2000). Values marked as estimates depend on assumptions that a field pilot would calibrate.</div>
+  <div class="pie">Conceptual project: no physical nodes or customers. Data are generated every hour (7–20 h, cameras need daylight) by a simulated fleet of 12 nodes in a fictitious soybean field, using Río Cuarto climate normals (SMN 1991–2020). The season clock replays V6→R7 every 90 days so the demo always shows decision-relevant stages. Thresholds and efficacy priors come from INTA and UNRC publications; values marked as estimates depend on assumptions that a field pilot would calibrate. The system recommends; the grower and their agronomist decide.</div>
 </div>
 
 <dialog id="specs">
   <h3>Hardware specs (reference design)</h3>
   <table>
-    <tr><td>Optical node</td><td>ESP32-CAM (OV2640) imaging a yellow sticky trap; FOMO (TinyML) counts adult whiteflies on-device</td></tr>
+    <tr><td>Optical node</td><td>ESP32-CAM (OV2640) photographing the canopy; FOMO (TinyML) counts the target pest on-device — the photo never leaves the node</td></tr>
+    <tr><td>Layout</td><td>4 masts × 3 nodes: 75 cm (oruga medidora, <i>Rachiplusia nu</i>), 45 cm (chinche de la alfalfa, <i>Piezodorus guildinii</i>), 15 cm macro on a lower leaflet (trips, <i>Caliothrips phaseoli</i>). Heights are adjustable as the crop grows.</td></tr>
     <tr><td>Radio</td><td>LoRa SX1276 module, AU915-928 plan (ENACOM Res. 551/2021 &amp; 280/2022), sub-band 2</td></tr>
     <tr><td>Data rate</td><td>DR2 (SF10 / 125 kHz) — max 11 B with 400 ms dwell time (LoRaWAN RP002-1.0.3, table 45)</td></tr>
-    <tr><td>Payload</td><td>10 bytes binary (original JSON: 54–70 bytes, did not fit)</td></tr>
-    <tr><td>Uplink period</td><td>15 min</td></tr>
-    <tr><td>Power</td><td>Solar panel + Li-ion cell</td></tr>
+    <tr><td>Payload</td><td>10 bytes binary: count, confidence, temperature, relative humidity, battery, 4×4 occupancy map</td></tr>
+    <tr><td>Sampling</td><td>One photo per hour from 07:00 to 20:00 (no IR: no night photos)</td></tr>
+    <tr><td>Power</td><td>Solar panel + Li-ion cell, deep sleep at night</td></tr>
     <tr><td>Gateway</td><td>8-channel LoRaWAN gateway + ChirpStack v4 (HTTP integration → Cloud Run)</td></tr>
-    <tr><td>Cloud</td><td>Cloud Run · Pub/Sub · BigQuery (+ BigQuery ML ARIMA_PLUS) · Firestore · Cloud Scheduler · Terraform</td></tr>
+    <tr><td>Cloud</td><td>Cloud Run · Pub/Sub · BigQuery (+ BigQuery ML ARIMA_PLUS, residual-efficacy regression) · Firestore · Cloud Scheduler · Secret Manager · Terraform</td></tr>
   </table>
-  <p style="text-align:right"><button class="btn-sec" onclick="this.closest('dialog').close()">Close</button></p>
+  <p class="der"><button class="btn-sec" id="btnCerrarSpecs">Close</button></p>
 </dialog>
-
-<script>
-const $ = id => document.getElementById(id);
-let nodo = new URLSearchParams(location.search).get("nodo") || "RC-INV02-N1";
-let ws = null, grafico = null, ultimo = null;
-
-function fmtHora(iso){ const d = new Date(iso); return d.toLocaleString("es-AR",{timeZone:"America/Argentina/Cordoba",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}); }
-
-async function cargarNodos(){
-  const r = await fetch("/api/nodos"); const lista = await r.json();
-  $("selNodo").innerHTML = lista.map(n => `<option value="${n.id}">${n.id} · ${n.cultivo}${n.supera_umbral ? " ⚠" : ""}</option>`).join("");
-  $("selNodo").value = nodo;
-}
-$("selNodo").onchange = e => { nodo = e.target.value; history.replaceState(null,"","?nodo="+nodo); cargarHistoria(); if(ws && ws.readyState===1) ws.send(JSON.stringify({nodo})); };
-
-function kpi(id, val, delta, alerta){ const k=$(id); k.querySelector(".val").textContent=val; k.querySelector(".delta").textContent=delta; k.classList.toggle("alerta", !!alerta); }
-
-function pintar(f){
-  ultimo = f; const e = f.estado || {};
-  const edadMin = e.medido ? (Date.now() - new Date(e.medido)) / 60000 : 1e9;
-  const online = edadMin < 40;
-  kpi("kNodo", online ? "Online" : "Offline", `↑ LoRa RSSI: ${e.rssi ?? "—"} dBm · SNR ${e.snr ?? "—"} dB`, !online);
-  const t = e.temperatura_c;
-  kpi("kTemp", t != null ? `${t.toFixed(1)} °C` : "—", t == null ? "—" : (t >= 18 && t <= 30 ? "↑ Within crop range" : "⚠ Outside 18–30 °C"), t != null && (t < 18 || t > 30));
-  const b = e.bateria_v;
-  kpi("kBat", b != null ? `${b.toFixed(2)} V` : "—", b == null ? "—" : (b < 3.5 ? "⚠ Low battery" : "↑ Solar charging OK"), b != null && b < 3.5);
-  kpi("kAhorro", `USD ${f.ahorro.total_usd.toLocaleString("en-US",{minimumFractionDigits:2})}`, `↑ ${f.ahorro.intervenciones} early intervention(s)`);
-  const dens = e.adultos_hoja_est, supera = !!e.supera_umbral;
-  $("txtMit").textContent = supera
-    ? `Edge model estimates ${dens.toFixed(1)} adults/leaf, above the INTA action threshold (${f.umbral}). Request mitigation for the whole greenhouse?`
-    : `Estimated density ${dens != null ? dens.toFixed(1) : "—"} adults/leaf, below the action threshold (${f.umbral}). No intervention recommended.`;
-  $("chip").textContent = supera ? "⚠ Action threshold exceeded" : "✓ Below action threshold";
-  $("chip").className = supera ? "chip" : "chip ok";
-  $("btnMit").disabled = !supera;
-  $("btnMit").textContent = supera ? `🟢 QUANTIFY SAVINGS & REQUEST MITIGATION (≈ USD ${f.perdida_evitada_por_intervencion.toLocaleString("en-US")})` : "No mitigation needed";
-  const bit = (e.bitacora || []).slice().reverse();
-  $("consola").innerHTML = bit.map(l => `<div class="${l.startsWith("[CRITICAL") ? "c" : "i"}">${l.replace(/[<>&]/g,"")}</div>`).join("") || "<div class='i'>Waiting for uplinks…</div>";
-  const mapa = e.mapa_ocupacion || 0;
-  $("mapa").innerHTML = Array.from({length:16},(_,i)=>`<div class="celda ${(mapa>>i)&1 ? "on":""}"></div>`).join("");
-  $("notaPron").textContent = supera
-    ? (f.cruce_pronosticado ? "BigQuery ML forecast (ARIMA_PLUS): density stays above the action threshold over the next 48 h unless there is an intervention."
-                            : "BigQuery ML forecast (ARIMA_PLUS): density expected to fall back below the threshold within 48 h.")
-    : (f.cruce_pronosticado ? `BigQuery ML forecast (ARIMA_PLUS): threshold expected to be crossed around ${fmtHora(f.cruce_pronosticado)}.`
-                            : "BigQuery ML forecast (ARIMA_PLUS): no threshold crossing expected in the next 48 h.");
-}
-
-async function cargarHistoria(){
-  const r = await fetch("/api/historia/"+nodo); const h = await r.json();
-  const etiquetas = h.historia.map(x=>fmtHora(x.hora)).concat(h.pronostico.map(x=>fmtHora(x.hora)));
-  const real = h.historia.map(x=>x.adultos_hoja).concat(h.pronostico.map(()=>null));
-  const pron = h.historia.map((x,i)=> i===h.historia.length-1 ? x.adultos_hoja : null).concat(h.pronostico.map(x=>x.adultos_hoja));
-  const umbral = etiquetas.map(()=>10);
-  const ds = [
-    {label:"Action threshold (INTA)", data:umbral, borderColor:"#ff4d4d", borderDash:[6,5], pointRadius:0, borderWidth:2},
-    {label:"Estimated density (adults/leaf)", data:real, borderColor:"#2cff05", backgroundColor:"rgba(44,255,5,.08)", fill:true, tension:.35, pointRadius:0, borderWidth:2},
-    {label:"Forecast (BigQuery ML)", data:pron, borderColor:"#cfdbd5", borderDash:[2,4], pointRadius:0, borderWidth:2},
-  ];
-  if(grafico){ grafico.data.labels = etiquetas; grafico.data.datasets.forEach((d,i)=>d.data=ds[i].data); grafico.update(); return; }
-  grafico = new Chart($("grafico"), {type:"line", data:{labels:etiquetas, datasets:ds},
-    options:{responsive:true, maintainAspectRatio:false, animation:false, spanGaps:true,
-      plugins:{legend:{labels:{color:"#cfdbd5", boxWidth:28}}},
-      scales:{x:{ticks:{color:"#8a96a3", maxTicksLimit:8}, grid:{color:"#1d232b"}},
-              y:{beginAtZero:true, title:{display:true,text:"Adults per leaf (estimated)",color:"#8a96a3"}, ticks:{color:"#8a96a3"}, grid:{color:"#1d232b"}}}}});
-}
-
-function conectar(){
-  const proto = location.protocol === "https:" ? "wss" : "ws";
-  const url = `${proto}://${location.host}/ws/telemetria?nodo=${encodeURIComponent(nodo)}`;
-  ws = new WebSocket(url);
-  ws.onopen = () => { $("punto").className="punto ok"; $("estadoWs").textContent = `FastAPI WebSocket connected · ${url.split("?")[0]}`; };
-  ws.onmessage = m => pintar(JSON.parse(m.data));
-  ws.onclose = ev => {
-    $("punto").className = "punto mal";
-    if(ev.code === 4000 || document.hidden){
-      $("estadoWs").innerHTML = 'Live session paused to stay within the free tier. <a href="#" style="color:#2cff05" onclick="conectar();return false">Resume</a>';
-    } else { $("estadoWs").textContent = "Disconnected, retrying…"; setTimeout(conectar, 5000); }
-  };
-}
-document.addEventListener("visibilitychange", () => { if(document.hidden && ws) ws.close(); else if(!document.hidden && ws && ws.readyState===3) conectar(); });
-
-$("btnMit").onclick = async () => {
-  $("btnMit").disabled = true; $("msgMit").textContent = "Sending command (simulated LoRaWAN downlink)…";
-  const r = await fetch("/api/mitigacion", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nodo})});
-  const j = await r.json();
-  $("msgMit").textContent = r.ok ? `Command queued for the whole greenhouse. Estimated avoided loss: USD ${j.perdida_evitada_usd.toLocaleString("en-US")}. Nodes receive it on their next uplink (≤15 min).` : (j.detail || "Error");
-};
-$("btnRecargar").onclick = () => { cargarHistoria(); fetch("/api/foto/"+nodo).then(r=>r.json()).then(pintar); };
-
-$("formAgente").onsubmit = async ev => {
-  ev.preventDefault();
-  const pregunta = $("pregunta").value.trim(); if(pregunta.length < 3) return;
-  $("respAgente").textContent = "Thinking… (the agent queries Firestore and BigQuery through tools)"; $("pasosAgente").textContent = "";
-  const r = await fetch("/api/agente", {method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify({nodo, pregunta})});
-  const j = await r.json();
-  $("respAgente").textContent = r.ok ? j.respuesta : (j.detail || "Error");
-  if(r.ok && j.pasos.length) $("pasosAgente").textContent = "Tools used: " + j.pasos.map(p => p.herramienta).join(" → ") + (j.modelo ? ` · ${j.modelo}` : "");
-};
-
-cargarNodos().then(()=>{ cargarHistoria(); conectar(); });
-</script>
 </body>
 </html>

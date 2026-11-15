@@ -7,3 +7,4 @@ infra/terraform/terraform.tfvars
 *.db
 .env
 docs/guia/
+docs/fuentes_v2/

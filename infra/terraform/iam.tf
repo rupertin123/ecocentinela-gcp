@@ -134,9 +134,12 @@ resource "google_iam_workload_identity_pool_provider" "github" {
     "google.subject"       = "assertion.sub"
     "attribute.repository" = "assertion.repository"
     "attribute.ref"        = "assertion.ref"
+    "attribute.repo_id"    = "assertion.repository_id"
   }
-  # Sólo la rama main de ESTE repositorio puede desplegar.
-  attribute_condition = "assertion.repository == '${var.repo_github}' && assertion.ref == 'refs/heads/main'"
+  # Sólo la rama main de ESTE repositorio puede desplegar. Se exige también el ID numérico del repositorio:
+  # si el repositorio se borrara o renombrara, otra persona podría crear uno con el mismo nombre, pero nunca
+  # con el mismo ID. Los eventos de pull request (incluidos los de forks) no tienen ref main.
+  attribute_condition = "assertion.repository_id == '${var.repo_github_id}' && assertion.repository == '${var.repo_github}' && assertion.ref == 'refs/heads/main' && assertion.event_name in ['push', 'workflow_dispatch']"
   oidc {
     issuer_uri = "https://token.actions.githubusercontent.com"
   }
@@ -145,7 +148,7 @@ resource "google_iam_workload_identity_pool_provider" "github" {
 resource "google_service_account_iam_member" "github_usa_despliegue" {
   service_account_id = google_service_account.sa["despliegue"].name
   role               = "roles/iam.workloadIdentityUser"
-  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repository/${var.repo_github}"
+  member             = "principalSet://iam.googleapis.com/${google_iam_workload_identity_pool.github.name}/attribute.repo_id/${var.repo_github_id}"
 }
 
 # «gcloud builds submit» primero consulta los metadatos del bucket (storage.buckets.get).

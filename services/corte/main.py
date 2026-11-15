@@ -56,10 +56,10 @@ async def recibir(req: Request):
     if tope <= 0 or costo < tope:
         return {"accion": "ninguna", "costo": costo, "tope": tope}
 
+    # Se desvincula directamente (es idempotente). La versión anterior consultaba antes getBillingInfo,
+    # que exige un permiso de LECTURA de facturación que la cuenta no tenía: el 15/11/2026 el corte falló
+    # con 403 justo cuando hacía falta. El simulacro ahora verifica TODOS los permisos que usa este camino.
     nombre = f"projects/{PROYECTO}"
-    info = _billing().projects().getBillingInfo(name=nombre).execute()
-    if not info.get("billingEnabled"):
-        return {"accion": "ya estaba desactivada"}
     _billing().projects().updateBillingInfo(name=nombre, body={"billingAccountName": ""}).execute()
     _log("FACTURACIÓN DESACTIVADA: se superó el tope", costo=costo, tope=tope, severity="CRITICAL")
     return {"accion": "facturación desactivada"}

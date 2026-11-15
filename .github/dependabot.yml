@@ -1,0 +1,16 @@
+# Avisa y propone actualizaciones de seguridad de las dependencias.
+version: 2
+updates:
+  - package-ecosystem: pip
+    directories: ["/services/ingesta", "/services/tablero", "/services/simulador", "/services/corte"]
+    schedule: {interval: weekly}
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule: {interval: weekly}
+  - package-ecosystem: docker
+    directories: ["/services/ingesta", "/services/tablero", "/services/simulador", "/services/corte"]
+    schedule: {interval: monthly}
+  - package-ecosystem: terraform
+    directory: "/infra/terraform"
+    schedule: {interval: monthly}

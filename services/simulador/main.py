@@ -1,11 +1,14 @@
 """Flota simulada de nodos EcoCentinela (Cloud Run Job).
 
-Reemplaza al hardware físico: cada corrida avanza el modelo de población de
-mosca blanca de cada nodo hasta «ahora», arma la carga binaria de 10 bytes y la
-envía a la API de ingesta con el mismo JSON que mandaría ChirpStack.
+Reemplaza al hardware físico. Lote de soja con 4 mástiles y 3 cámaras por mástil
+(75, 45 y 15 cm): cada cámara vigila UNA plaga en SU estrato de la planta. En cada
+corrida se avanza la población de cada nodo hasta «ahora», se descuenta el efecto
+de los insecticidas que el productor registró, se «saca la foto», se cuenta la plaga
+y se envía la carga binaria de 10 bytes a la API de ingesta con el mismo JSON que
+mandaría ChirpStack.
 
 Modos:
-  normal   (por defecto) una transmisión por nodo; Cloud Scheduler lo corre cada 15 min.
+  normal   (por defecto) una foto por nodo; Cloud Scheduler lo corre cada hora de 7 a 20 h.
   historia genera N días de historia de una vez y la carga en BigQuery por lotes.
   carga    prueba de carga: N nodos virtuales transmitiendo en paralelo.
 """
@@ -20,7 +23,7 @@ import sys
 import time
 from datetime import datetime, timedelta, timezone
 
-from ecocentinela import carga_util, chirpstack, modelo
+from ecocentinela import carga_util, chirpstack, eficacia, modelo
 
 PROYECTO = os.environ.get("GOOGLE_CLOUD_PROJECT", "local")
 URL_INGESTA = os.environ.get("URL_INGESTA", "http://localhost:8080")
@@ -39,36 +42,53 @@ def _fs():
     return firestore.Client(project=PROYECTO)
 
 
-def _a_estado(d: dict | None, nodo: modelo.Nodo, rng: random.Random) -> modelo.EstadoNodo:
-    if not d:
-        return modelo.EstadoNodo(densidad=rng.uniform(0.3, 1.5),
-                                 ultimo=modelo.ahora() - timedelta(minutes=15))
-    return modelo.EstadoNodo(
-        densidad=d["densidad"], ultimo=datetime.fromisoformat(d["ultimo"]),
-        bateria_v=d["bateria_v"], fcnt=d["fcnt"],
-        mitigacion_hasta=datetime.fromisoformat(d["mitigacion_hasta"]) if d.get("mitigacion_hasta") else None)
+def _a_estado(d: dict | None, nodo: modelo.Nodo, rng: random.Random, t: datetime) -> modelo.EstadoNodo:
+    plaga = modelo.PLAGAS[nodo.plaga]
+    if not d or d.get("ciclo") != modelo.ciclo(t):
+        # Primera corrida o campaña nueva (el reloj de campaña se repite cada 90 días): se reinicia la plaga.
+        return modelo.EstadoNodo(sin_tratar=modelo.densidad_inicial(plaga, rng), ultimo=t - timedelta(hours=1),
+                                 fcnt=(d or {}).get("fcnt", 0), ciclo=modelo.ciclo(t))
+    return modelo.EstadoNodo(sin_tratar=d["sin_tratar"], ultimo=datetime.fromisoformat(d["ultimo"]),
+                             bateria_v=d["bateria_v"], fcnt=d["fcnt"], ciclo=d["ciclo"])
 
 
 def _de_estado(e: modelo.EstadoNodo) -> dict:
-    return {"densidad": e.densidad, "ultimo": e.ultimo.isoformat(), "bateria_v": e.bateria_v, "fcnt": e.fcnt,
-            "mitigacion_hasta": e.mitigacion_hasta.isoformat() if e.mitigacion_hasta else None}
+    return {"sin_tratar": e.sin_tratar, "ultimo": e.ultimo.isoformat(), "bateria_v": e.bateria_v,
+            "fcnt": e.fcnt, "ciclo": e.ciclo}
 
 
-def armar_evento(nodo_id: str, e: modelo.EstadoNodo, hasta: datetime, rng: random.Random) -> dict:
-    capturas, temp, humedad = modelo.paso(e, hasta, rng)
+def armar_evento(nodo: modelo.Nodo, e: modelo.EstadoNodo, hasta: datetime, aplicaciones: list[dict],
+                 rng: random.Random) -> dict:
+    """Avanza el nodo hasta `hasta`, «saca la foto», la cuenta y arma el uplink de 10 bytes."""
+    plaga = modelo.PLAGAS[nodo.plaga]
+    modelo.avanzar(plaga, e, hasta, rng)
+    # Lo que realmente hay en la planta: la población sin tratar menos lo que elimina el insecticida.
+    real = e.sin_tratar * (1 - eficacia.eficacia_en_campo(aplicaciones, plaga.codigo, e.ultimo))
+    conteo = modelo.conteo_imagen(plaga, real, rng)
     e.fcnt += 1
     banderas = 0
     if e.bateria_v < 3.5:
         banderas |= carga_util.BANDERA_BATERIA_BAJA
-    if e.mitigacion_hasta and e.ultimo <= e.mitigacion_hasta:
-        banderas |= carga_util.BANDERA_MITIGACION_ACTIVA
+    if rng.random() < 0.02:  # ráfaga de viento: la foto sale movida y el nodo la marca
+        banderas |= carga_util.BANDERA_IMAGEN_BORROSA
+    temp = modelo.temperatura_aire(e.ultimo) + rng.gauss(0, 0.6)
     lectura = carga_util.Lectura(
-        adultos_trampa=capturas,
-        confianza=max(0.6, min(0.98, rng.gauss(0.92 - 0.002 * capturas, 0.02))),  # más superposición, menos confianza
-        temperatura_c=temp, humedad_suelo_pct=humedad, bateria_v=e.bateria_v,
-        mapa_ocupacion=modelo.mapa_ocupacion(capturas, rng), banderas=banderas)
-    return chirpstack.evento_up(nodo_id, e.fcnt, carga_util.codificar(lectura), e.ultimo, rng,
-                                distancia_km=rng.uniform(0.5, 4.0))
+        conteo=conteo,
+        confianza=max(0.55, min(0.98, rng.gauss(0.91 - 0.003 * conteo, 0.025))),  # más individuos, más superposición
+        temperatura_c=temp, humedad_rel_pct=modelo.humedad_relativa(temp, rng), bateria_v=e.bateria_v,
+        mapa_ocupacion=modelo.mapa_ocupacion(conteo, rng), banderas=banderas)
+    return chirpstack.evento_up(nodo.id, e.fcnt, carga_util.codificar(lectura), e.ultimo, rng,
+                                distancia_km=rng.uniform(0.3, 2.5))
+
+
+def _aplicaciones_firestore(fs, t: datetime) -> list[dict]:
+    """Aplicaciones registradas por el productor en la campaña simulada actual."""
+    salida = []
+    for d in fs.collection("aplicaciones").where("ciclo", "==", modelo.ciclo(t)).stream():
+        a = d.to_dict()
+        a["aplicada_en"] = datetime.fromisoformat(a["aplicada_en"])
+        salida.append(a)
+    return salida
 
 
 # ------------------------------------------------------------------ envío
@@ -104,29 +124,35 @@ class Emisor:
 
 # ------------------------------------------------------------------ modos
 def modo_normal() -> None:
+    ahora = modelo.ahora().replace(second=0, microsecond=0)
+    if not modelo.es_de_dia(ahora):
+        log("de noche los nodos duermen: no hay fotos")  # Cloud Scheduler sólo dispara de 7 a 20 h
+        return
     fs, rng, em = _fs(), random.Random(), Emisor()
-    ahora = modelo.ahora()
+    aplicaciones = _aplicaciones_firestore(fs, ahora)
+    previos = {d.id: d.to_dict() for d in fs.collection("sim_estado").stream()}  # 1 consulta, no 12
+    lote = fs.batch()
     codigos: dict[int, int] = {}
     for nodo in modelo.NODOS:
-        ref = fs.collection("sim_estado").document(nodo.id)
-        snap = ref.get()
-        e = _a_estado(snap.to_dict() if snap.exists else None, nodo, rng)
-        # «Downlink» simulado: el tablero deja una orden en Firestore y el nodo la recibe en su próxima ventana.
-        cmd_ref = fs.collection("comandos").document(nodo.id)
-        cmd = cmd_ref.get()
-        if cmd.exists and cmd.to_dict().get("pendiente"):
-            e.mitigacion_hasta = ahora + timedelta(hours=48)
-            cmd_ref.set({"pendiente": False, "aplicado": ahora.isoformat()}, merge=True)
-            log("mitigación aplicada", nodo=nodo.id)
+        e = _a_estado(previos.get(nodo.id), nodo, rng, ahora)
         if (ahora - e.ultimo) > timedelta(days=2):
             e.ultimo = ahora - timedelta(hours=1)  # no reconstruir días perdidos (p. ej. tras una pausa)
-        evento = armar_evento(nodo.id, e, ahora, rng)
-        codigo = em.enviar(evento)
+        codigo = em.enviar(armar_evento(nodo, e, ahora, aplicaciones, rng))
         codigos[codigo] = codigos.get(codigo, 0) + 1
-        ref.set(_de_estado(e))
-    log("corrida terminada", codigos=codigos)
+        lote.set(fs.collection("sim_estado").document(nodo.id), _de_estado(e))
+    lote.commit()
+    log("corrida terminada", codigos=codigos, estadio=modelo.estadio(ahora), aplicaciones=len(aplicaciones))
     if any(c >= 400 for c in codigos):
         sys.exit(1)
+
+
+def _guion_historia(estrato: str, cruces: dict, t: datetime, supera: bool) -> bool:
+    """Decide si en la historia el «productor» aplicó: sólo el estrato superior, la primera vez que la
+    recomendación aparece en R3 o después. Así la historia muestra una aplicación con su decaimiento
+    y deja a las chinches (estrato medio) esperando la decisión del productor en el tablero."""
+    if estrato != "superior" or not supera or estrato in cruces:
+        return False
+    return modelo.dds(t) >= 73
 
 
 def modo_historia(dias: int) -> None:
@@ -140,48 +166,65 @@ def modo_historia(dias: int) -> None:
     import main as ingesta  # noqa: E402  (la API de ingesta)
 
     cli, rng = TestClient(ingesta.app), random.Random(2026)
-    fin = modelo.ahora().replace(second=0, microsecond=0)
+    fin = modelo.ahora().replace(minute=0, second=0, microsecond=0)
     inicio = fin - timedelta(days=dias)
-    estados = {n.id: modelo.EstadoNodo(densidad=rng.uniform(0.2, 1.2), ultimo=inicio) for n in modelo.NODOS}
-    # El invernadero 02 arranca más infestado y recibe una intervención cuando cruza el umbral,
-    # para que la historia muestre el efecto de la mitigación.
-    for nid in ("RC-INV02-N1", "RC-INV02-N2", "RC-INV02-N3"):
-        estados[nid].densidad = 3.0
-    mitigaciones = []
+    if modelo.ciclo(inicio) != modelo.ciclo(fin):  # la historia no puede cruzar el reinicio de campaña
+        inicio = modelo.INICIO_RELOJ + timedelta(days=modelo.DURACION_CICLO_DIAS * modelo.ciclo(fin), hours=1)
+    estados = {n.id: modelo.EstadoNodo(sin_tratar=modelo.densidad_inicial(modelo.PLAGAS[n.plaga], rng),
+                                       ultimo=inicio, ciclo=modelo.ciclo(fin)) for n in modelo.NODOS}
+    aplicaciones: list[dict] = []
+    cruces: dict[str, datetime] = {}
     t = inicio
     while t < fin:
-        t += timedelta(minutes=15)
+        t += timedelta(hours=1)
+        if not modelo.es_de_dia(t):
+            continue
+        por_estrato: dict[str, list[bool]] = {}
         for n in modelo.NODOS:
-            e = estados[n.id]
-            r = cli.post("/v1/uplink", json=armar_evento(n.id, e, t, rng))
+            r = cli.post("/v1/uplink", json=armar_evento(n, estados[n.id], t, aplicaciones, rng))
             assert r.status_code == 202, r.text
-            if (n.invernadero == "Invernadero 02" and e.mitigacion_hasta is None
-                    and r.json()["supera_umbral"]):
-                for m in modelo.NODOS:
-                    if m.invernadero == n.invernadero:
-                        estados[m.id].mitigacion_hasta = t + timedelta(hours=48)
-                mitigaciones.append({"invernadero": n.invernadero, "cuando": t.isoformat(), "origen": "historia",
-                                     "perdida_evitada_usd": modelo.ModeloEconomico().perdida_evitada()})
+            por_estrato.setdefault(n.estrato, []).append(bool(r.json().get("supera_umbral")))
+        for estrato, v in por_estrato.items():
+            if _guion_historia(estrato, cruces, t, sum(v) >= 3):
+                cruces[estrato] = t
+                plaga = modelo.POR_ESTRATO[estrato].codigo
+                p = eficacia.PRODUCTO_DE_PLAGA[plaga]
+                aplicada = t + timedelta(hours=20)  # el productor recibe la recomendación y aplica al otro día
+                aplicaciones.append({"id": f"hist-{estrato}-{aplicada:%Y%m%d}", "estrato": estrato, "plaga": plaga,
+                                     "producto": p.codigo, "aplicada_en": aplicada, "registrada": aplicada,
+                                     "origen": "historia", "ciclo": modelo.ciclo(t)})
     filas = [f for top, f in ingesta.destinos().publicados if top == ingesta.TOPICO]
-    log("historia generada", filas=len(filas), desde=inicio.isoformat(), hasta=fin.isoformat())
+    log("historia generada", filas=len(filas), desde=inicio.isoformat(), hasta=fin.isoformat(),
+        aplicaciones=len(aplicaciones))
 
     from google.cloud import bigquery
 
     bq = bigquery.Client(project=PROYECTO)
-    tabla = f"{PROYECTO}.{DATASET}.telemetria"
-    trabajo = bq.load_table_from_json(filas, tabla, job_config=bigquery.LoadJobConfig(
-        write_disposition="WRITE_APPEND", source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON))
+    cfg = dict(write_disposition="WRITE_APPEND", source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON)
+    trabajo = bq.load_table_from_json(filas, f"{PROYECTO}.{DATASET}.telemetria", job_config=bigquery.LoadJobConfig(**cfg))
     trabajo.result()
-    log("historia cargada en BigQuery", tabla=tabla, filas=trabajo.output_rows)
+    log("historia cargada en BigQuery", filas=trabajo.output_rows)
+    if aplicaciones:
+        filas_apl = [_fila_aplicacion(a) for a in aplicaciones]
+        bq.load_table_from_json(filas_apl, f"{PROYECTO}.{DATASET}.aplicaciones",
+                                job_config=bigquery.LoadJobConfig(**cfg)).result()
 
     fs = _fs()
-    for m in mitigaciones:
-        fs.collection("mitigaciones").add(m)
+    for a in aplicaciones:
+        fs.collection("aplicaciones").document(a["id"]).set(
+            {**a, "aplicada_en": a["aplicada_en"].isoformat(), "registrada": a["registrada"].isoformat()})
     for nid, e in estados.items():
-        e.mitigacion_hasta = None
         fs.collection("sim_estado").document(nid).set(_de_estado(e))
         fs.collection("estado_nodos").document(nid).set(ingesta.destinos().estados[nid])
     log("estado inicial de la flota guardado en Firestore")
+
+
+def _fila_aplicacion(a: dict) -> dict:
+    p = eficacia.PRODUCTOS[a["producto"]]
+    return {"aplicacion_id": a["id"], "estrato": a["estrato"], "plaga": a["plaga"], "producto": a["producto"],
+            "principio_activo": p.principio_activo, "aplicada_en": a["aplicada_en"].isoformat(),
+            "registrada": a["registrada"].isoformat(), "origen": a["origen"], "ciclo": a["ciclo"],
+            "e0_bibliografia": p.e0, "k_bibliografia": p.k}
 
 
 def modo_carga(n: int, hilos: int) -> None:
@@ -190,8 +233,9 @@ def modo_carga(n: int, hilos: int) -> None:
     ahora = modelo.ahora()
     eventos = []
     for i in range(n):
-        e = modelo.EstadoNodo(densidad=rng.uniform(1, 30), ultimo=ahora - timedelta(minutes=15))
-        eventos.append(armar_evento(f"PRUEBA-CARGA-{i:04d}", e, ahora, rng))
+        e = modelo.EstadoNodo(sin_tratar=rng.uniform(1, 30), ultimo=ahora - timedelta(hours=1))
+        nodo = modelo.Nodo(f"PRUEBA-CARGA-{i:04d}", "PRUEBA", "rachiplusia", 0.0, 0.0)
+        eventos.append(armar_evento(nodo, e, ahora, [], rng))
 
     def uno(ev: dict) -> tuple[int, float]:
         t0 = time.perf_counter()

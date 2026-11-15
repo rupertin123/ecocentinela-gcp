@@ -21,9 +21,15 @@ variable "moneda" {
 }
 
 variable "presupuesto" {
-  description = "Tope mensual en la moneda de la cuenta. Superado, se desactiva la facturación del proyecto."
+  description = "Tope mensual de costo BRUTO (antes de créditos) en la moneda de la cuenta. Superado, se desactiva la facturación del proyecto."
   type        = number
-  default     = 1
+  default     = 5
+}
+
+variable "oauth_client_id" {
+  description = "ID de cliente OAuth (tipo «Aplicación web») para el botón de Google del tablero. Vacío = tablero sólo de lectura."
+  type        = string
+  default     = ""
 }
 
 variable "correo_alertas" {
@@ -33,6 +39,11 @@ variable "correo_alertas" {
 
 variable "repo_github" {
   description = "Repositorio autorizado a desplegar con Workload Identity Federation (usuario/repositorio)"
+  type        = string
+}
+
+variable "repo_github_id" {
+  description = "ID numérico del repositorio de GitHub (gh api repos/USUARIO/REPO --jq .id)"
   type        = string
 }
 

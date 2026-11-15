@@ -80,6 +80,19 @@ resource "google_cloud_run_v2_service" "tablero" {
         value = google_bigquery_dataset.eco.dataset_id
       }
       env {
+        name  = "OAUTH_CLIENT_ID" # público: identifica la app ante Google Sign-In
+        value = var.oauth_client_id
+      }
+      env {
+        name = "ADMIN_EMAILS" # correos autorizados a registrar aplicaciones (no van al repositorio)
+        value_source {
+          secret_key_ref {
+            secret  = google_secret_manager_secret.admins.secret_id
+            version = "latest"
+          }
+        }
+      }
+      env {
         name = "GEMINI_API_KEY"
         value_source {
           secret_key_ref {
@@ -93,7 +106,7 @@ resource "google_cloud_run_v2_service" "tablero" {
   lifecycle {
     ignore_changes = [template[0].containers[0].image, client, client_version]
   }
-  depends_on = [google_project_iam_member.p, google_secret_manager_secret_iam_member.tablero_lee_gemini]
+  depends_on = [google_project_iam_member.p, google_secret_manager_secret_iam_member.tablero_lee]
 }
 
 resource "google_cloud_run_v2_service_iam_member" "tablero_publico" {
@@ -142,11 +155,12 @@ resource "google_cloud_run_v2_job_iam_member" "programa_ejecuta" {
   member   = "serviceAccount:${google_service_account.sa["programa"].email}"
 }
 
-# Cada 15 minutos, la «flota» transmite. Cloud Scheduler: 3 trabajos gratis por cuenta de facturación.
+# Cada hora de 7 a 20 (las cámaras necesitan luz), la «flota» saca una foto y transmite.
+# Cloud Scheduler: 3 trabajos gratis por cuenta de facturación.
 resource "google_cloud_scheduler_job" "flota" {
-  name        = "flota-cada-15-min"
-  description = "Dispara una transmisión de los 12 nodos simulados"
-  schedule    = "*/15 * * * *"
+  name        = "flota-cada-hora-de-dia"
+  description = "Dispara una foto y una transmisión de los 12 nodos simulados"
+  schedule    = "0 7-20 * * *"
   time_zone   = "America/Argentina/Cordoba"
   region      = var.region
   retry_config {
@@ -212,8 +226,28 @@ resource "google_secret_manager_secret" "gemini" {
   depends_on = [google_project_service.apis]
 }
 
-resource "google_secret_manager_secret_iam_member" "tablero_lee_gemini" {
-  secret_id = google_secret_manager_secret.gemini.id
+# Lista de correos autorizados a registrar aplicaciones (separados por coma). Mismo criterio: se carga con gcloud.
+resource "google_secret_manager_secret" "admins" {
+  secret_id = "admin-emails"
+  replication {
+    user_managed {
+      replicas {
+        location = var.region
+      }
+    }
+  }
+  depends_on = [google_project_service.apis]
+}
+
+resource "google_secret_manager_secret_iam_member" "tablero_lee" {
+  for_each  = { gemini = google_secret_manager_secret.gemini.id, admins = google_secret_manager_secret.admins.id }
+  secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.sa["tablero"].email}"
+}
+
+resource "google_pubsub_topic_iam_member" "tablero_publica_aplicaciones" {
+  topic  = google_pubsub_topic.aplicaciones.name
+  role   = "roles/pubsub.publisher"
+  member = "serviceAccount:${google_service_account.sa["tablero"].email}"
 }

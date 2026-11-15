@@ -1,5 +1,5 @@
 -- Calidad de datos por nodo y día.
--- Completitud: un nodo transmite cada 15 min, así que un día completo son 96 uplinks.
+-- Completitud: un nodo saca una foto por hora de 7 a 20 h, así que un día completo son 14 uplinks.
 WITH t AS (
   SELECT DATE(medido, 'America/Argentina/Cordoba') AS dia, nodo_id,
          COUNT(*) AS filas, COUNT(DISTINCT evento_id) AS eventos_unicos,
@@ -9,7 +9,7 @@ WITH t AS (
          APPROX_QUANTILES(IF(TIMESTAMP_DIFF(recibido, medido, MINUTE) < 60,
                              TIMESTAMP_DIFF(recibido, medido, MILLISECOND), NULL), 100)[OFFSET(95)] AS demora_p95_ms
   FROM `${p}.ecocentinela.telemetria`
-  WHERE invernadero != 'PRUEBA DE CARGA'
+  WHERE punto != 'PRUEBA'
   GROUP BY dia, nodo_id
 ),
 r AS (
@@ -18,7 +18,7 @@ r AS (
 )
 SELECT t.dia, t.nodo_id, t.filas, t.eventos_unicos,
        t.filas - t.eventos_unicos AS duplicados,
-       ROUND(100 * t.eventos_unicos / 96, 1) AS completitud_pct,
+       ROUND(100 * t.eventos_unicos / 14, 1) AS completitud_pct,
        (t.fcnt_max - t.fcnt_min + 1) - t.eventos_unicos AS tramas_perdidas,
        ROUND(t.confianza_media, 3) AS confianza_media, t.bateria_min, t.demora_p95_ms,
        IFNULL(r.rechazos, 0) AS rechazos_del_dia
