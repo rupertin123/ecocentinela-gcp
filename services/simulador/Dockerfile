@@ -1,5 +1,5 @@
 # Se construye desde la raíz del repositorio: docker build -f services/simulador/Dockerfile .
-FROM python:3.12-slim
+FROM python:3.15-slim
 ENV PYTHONUNBUFFERED=1 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/app/common
 WORKDIR /app/simulador
 COPY services/simulador/requirements.txt .
