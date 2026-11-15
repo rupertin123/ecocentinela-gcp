@@ -46,7 +46,7 @@ function pintarResumen(r, det) {
   $("estratos").innerHTML = r.estratos.map(e => {
     const est = ESTADO[e.estado] || ESTADO.DATOS_INSUFICIENTES;
     const frac = e.densidad != null ? Math.min(1, e.densidad / e.umbral) : 0;
-    const prot = e.proteccion && e.proteccion.vigente ? ` · 🛡 until ${fmt(e.proteccion.fecha_descubierto)}` : "";
+    const prot = e.proteccion && e.proteccion.vigente ? ` until ${fmt(e.proteccion.fecha_descubierto)} (E < 50 %)` : "";
     return `<button class="estrato ${est.color} ${e.estrato === estrato ? "sel" : ""}" data-estrato="${e.estrato}">
       <div><div class="nom">${esc(NOMBRE_ESTRATO[e.estrato])} — ${esc(e.nombre)} <i>(${esc(e.cientifico)})</i></div>
       <div class="det">${esc(est.chip)}${esc(prot)} · threshold ${num(e.umbral, 1)} ${esc(e.unidad)} (${esc(e.estadio)})</div></div>
@@ -99,9 +99,12 @@ function pintarDetalle(d) {
   graficoDensidad(d, e);
   graficoEficacia(d.eficacia);
   const cruce = d.pronostico.find(p => p.densidad >= (e.umbral || Infinity));
-  $("notaPron").textContent = d.pronostico.length ? (cruce ? `BigQuery ML forecast (ARIMA_PLUS, per stratum): threshold expected to be reached around ${fmt(cruce.hora)}.`
-                                                           : "BigQuery ML forecast (ARIMA_PLUS, per stratum): no threshold crossing expected in the next 72 h.")
-                                                  : "BigQuery ML forecast not available yet (the model retrains weekly).";
+  const yaArriba = e.densidad != null && e.densidad >= e.umbral;
+  $("notaPron").textContent = !d.pronostico.length ? "BigQuery ML forecast not available yet (the model retrains weekly)."
+    : yaArriba ? (d.pronostico.every(p => p.densidad >= e.umbral) ? "BigQuery ML forecast (ARIMA_PLUS, per stratum): density stays above the threshold over the next 72 h unless the field is sprayed."
+                                                                   : "BigQuery ML forecast (ARIMA_PLUS, per stratum): density expected to fall back below the threshold within 72 h.")
+    : (cruce ? `BigQuery ML forecast (ARIMA_PLUS, per stratum): threshold expected to be reached around ${fmt(cruce.hora)}.`
+                                                           : "BigQuery ML forecast (ARIMA_PLUS, per stratum): no threshold crossing expected in the next 72 h.");
 }
 
 const ejeTiempo = {type: "linear", ticks: {color: "#8a96a3", maxTicksLimit: 8, callback: v => fmt(new Date(v).toISOString())}, grid: {color: "#1d232b"}};
