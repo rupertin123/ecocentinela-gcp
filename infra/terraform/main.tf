@@ -10,7 +10,7 @@ terraform {
     }
     google-beta = {
       source  = "hashicorp/google-beta"
-      version = "~> 7.0"
+      version = "~> 8.11"
     }
   }
   # El estado vive en un bucket de us-central1 (Cloud Storage es gratis sólo en us-east1/us-west1/us-central1).
