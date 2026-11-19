@@ -8,3 +8,5 @@ infra/terraform/terraform.tfvars
 .env
 docs/guia/
 docs/fuentes_v2/
+apagado.log
+**/.terraform/

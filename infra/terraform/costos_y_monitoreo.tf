@@ -128,7 +128,9 @@ resource "google_logging_metric" "rechazos" {
 
 resource "google_monitoring_alert_policy" "sin_datos" {
   display_name = "La flota dejo de transmitir"
-  combiner     = "OR"
+  # Apagada el 16/11/2026: mandaba un correo cada vez que el simulador no transmitía (falsas alarmas).
+  enabled  = false
+  combiner = "OR"
   conditions {
     # Los nodos sólo fotografían de 7 a 20 h: de noche hay 11 h sin datos por diseño, no es una falla.
     display_name = "Sin uplinks aceptados durante 13 h"
@@ -141,7 +143,8 @@ resource "google_monitoring_alert_policy" "sin_datos" {
       }
     }
   }
-  notification_channels = [google_monitoring_notification_channel.correo.id]
+  # Sin canal: al apagarla, Google cerraba los incidentes viejos y mandaba un correo «Alerta recuperada» por cada uno.
+  notification_channels = []
 }
 
 resource "google_monitoring_alert_policy" "errores_ingesta" {

@@ -99,6 +99,7 @@ The repository is public, so it contains no keys, tokens, billing IDs or persona
 - **History:** 30 days × 12 nodes × 14 photos/day = 5,040 rows, loaded with free batch load jobs.
 - **Residual-efficacy fit:** half-life 9.6 d estimated vs 10 d ground truth, R² 0.88, from 5 days of field data.
 - **Load test (Cloud Run, 1,000 virtual nodes, ingestion API v2, 15/11/2026):** 1,000/1,000 accepted in 12.5 s (80/s); p50 136 ms, p95 1.0 s, p99 6.9 s (cold start of the second instance under the `max_instances = 2` cost cap). The real fleet sends 12 uplinks per hour.
+- **Load test (GKE Autopilot, in-cluster Job, 19/11/2026):** 1,000/1,000 accepted in 11.5 s (86.8/s); p50 96 ms, p95 177 ms, p99 4.85 s; all 1,000 rows reached BigQuery through Pub/Sub using Workload Identity (no keys). The NetworkPolicy was verified: a pod without the `rol=generador` label cannot reach the ingestion service.
 - **Load test (Kubernetes, local kind cluster, v1 API, 08/11/2026):** 500 uplinks in 3.5 s (144/s), p95 212 ms.
 - **Tests:** 43 pytest tests. They include the Python fit compared with the INTA data and the SQL constants, the decision states, authentication (fake Google verifier) and security headers.
 
@@ -113,8 +114,26 @@ services/corte/        billing kill switch (Pub/Sub push → Cloud Billing API)
 infra/terraform/       all infrastructure as code
 sql/                   BigQuery views (dedup, data quality, residual efficacy) and ARIMA_PLUS queries
 k8s/                   Kubernetes manifests + script to run them on kind
+k8s/gke/               GKE Autopilot manifests (Workload Identity, NetworkPolicy, HPA, Ingress) + deploy/teardown scripts
+infra/gke/             Terraform for the GKE Autopilot cluster (separate state, created and destroyed on demand)
 migracion/             SQLite → BigQuery migration of the original PoC data, with reconciliation
 tests/                 pytest suite (runs in CI and inside Cloud Build)
+```
+
+## Kubernetes on GKE (Autopilot)
+
+The same container images that run on Cloud Run also run unchanged on **Google Kubernetes Engine**. The cluster lives in its own Terraform state so it can be created for a demo and destroyed afterwards without touching the Cloud Run platform:
+
+- **Autopilot, regional (us-central1):** Google manages nodes and patches; billing is per pod request. The cluster fee is covered by the GKE free-tier credit; pods run on **Spot** capacity.
+- **Least-privilege nodes:** a dedicated node service account (`roles/container.defaultNodeServiceAccount` + Artifact Registry read) instead of the Compute Engine default account.
+- **Workload Identity:** each Kubernetes ServiceAccount maps to the same Google service account the component uses on Cloud Run; there are no keys in the cluster.
+- **Private ingestion:** `ClusterIP` service plus a **NetworkPolicy** that only admits pods labelled `rol=generador` (on Cloud Run this is done with IAM and OIDC tokens).
+- **Public dashboard:** GKE Ingress (external Application Load Balancer) with a `BackendConfig` for the `/salud` health check, 15-minute WebSocket timeout and cookie affinity. Read-only on GKE (Google Sign-In needs HTTPS on an authorised origin).
+- **Autoscaling:** HPA from 2 to 4 ingestion pods at 70 % CPU; readiness and liveness probes on every pod.
+
+```bash
+k8s/gke/desplegar.sh <project>   # terraform apply + kubectl apply + in-cluster load test
+k8s/gke/apagar.sh <project>      # delete the Ingress (and its load balancer), then terraform destroy
 ```
 
 ## Run it yourself

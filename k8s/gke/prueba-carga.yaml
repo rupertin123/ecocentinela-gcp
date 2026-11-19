@@ -1,0 +1,36 @@
+# Prueba de carga DENTRO del clúster: N nodos virtuales «PRUEBA-CARGA-xxxx» le transmiten a la ingesta
+# por la red interna de Kubernetes. Es el único pod con la etiqueta rol=generador, la que la
+# NetworkPolicy deja pasar. Se aplica con desplegar.sh (reemplaza __PROYECTO__ y __VERSION__).
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: prueba-carga
+  namespace: ecocentinela
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels: {rol: generador}
+    spec:
+      serviceAccountName: simulador
+      restartPolicy: Never
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: simulador
+          image: us-central1-docker.pkg.dev/__PROYECTO__/ecocentinela/simulador:__VERSION__
+          args: ["--modo", "carga", "--n", "1000", "--hilos", "16"]
+          env:
+            - {name: URL_INGESTA, value: "http://ingesta.ecocentinela.svc.cluster.local"}
+            - {name: GOOGLE_CLOUD_PROJECT, value: "__PROYECTO__"}
+          resources:
+            requests: {cpu: 500m, memory: 512Mi}
+            limits: {cpu: 500m, memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}

@@ -1,0 +1,208 @@
+# EcoCentinela en GKE Autopilot: las MISMAS imágenes que corren en Cloud Run, ahora orquestadas por Kubernetes.
+# Lo aplica k8s/gke/desplegar.sh (reemplaza __PROYECTO__ y __VERSION__). Diferencias con la versión de kind:
+#   - la ingesta habla con Pub/Sub y Firestore reales (sin MODO_LOCAL), con Workload Identity en lugar de claves;
+#   - el tablero sale a Internet por un balanceador HTTP(S) de Google (Ingress) con health checks propios;
+#   - una NetworkPolicy deja que SÓLO el generador de carga llegue a la ingesta (en Cloud Run eso lo hacía IAM);
+#   - pods Spot: hasta 60-90 % más baratos; si Google reclama la máquina, Kubernetes los reprograma solos.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ecocentinela
+---
+# Una ServiceAccount de Kubernetes por componente, ligada a su cuenta de servicio de Google (Workload Identity).
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ingesta
+  namespace: ecocentinela
+  annotations:
+    iam.gke.io/gcp-service-account: eco-ingesta@__PROYECTO__.iam.gserviceaccount.com
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: tablero
+  namespace: ecocentinela
+  annotations:
+    iam.gke.io/gcp-service-account: eco-tablero@__PROYECTO__.iam.gserviceaccount.com
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: simulador
+  namespace: ecocentinela
+  annotations:
+    iam.gke.io/gcp-service-account: eco-simulador@__PROYECTO__.iam.gserviceaccount.com
+---
+# ------------------------------------------------------------------ ingesta (interna)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ingesta
+  namespace: ecocentinela
+  labels: {app: ingesta}
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: ingesta}
+  template:
+    metadata:
+      labels: {app: ingesta}
+    spec:
+      serviceAccountName: ingesta
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      terminationGracePeriodSeconds: 25
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: ingesta
+          image: us-central1-docker.pkg.dev/__PROYECTO__/ecocentinela/ingesta:__VERSION__
+          ports: [{containerPort: 8080}]
+          env:
+            - {name: GOOGLE_CLOUD_PROJECT, value: "__PROYECTO__"}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: 250m, memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          readinessProbe:
+            httpGet: {path: /salud, port: 8080}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /salud, port: 8080}
+            periodSeconds: 15
+            failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ingesta
+  namespace: ecocentinela
+spec:
+  type: ClusterIP           # sin IP pública: sólo se alcanza desde dentro del clúster
+  selector: {app: ingesta}
+  ports: [{port: 80, targetPort: 8080}]
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: ingesta
+  namespace: ecocentinela
+spec:
+  scaleTargetRef: {apiVersion: apps/v1, kind: Deployment, name: ingesta}
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: {type: Utilization, averageUtilization: 70}
+---
+# Sólo los pods marcados como generador de tráfico pueden hablarle a la ingesta.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ingesta-solo-generador
+  namespace: ecocentinela
+spec:
+  podSelector:
+    matchLabels: {app: ingesta}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: {rol: generador}
+      ports: [{port: 8080, protocol: TCP}]
+---
+# ------------------------------------------------------------------ tablero (público, sólo lectura)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tablero
+  namespace: ecocentinela
+  labels: {app: tablero}
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: tablero}
+  template:
+    metadata:
+      labels: {app: tablero}
+    spec:
+      serviceAccountName: tablero
+      nodeSelector:
+        cloud.google.com/gke-spot: "true"
+      terminationGracePeriodSeconds: 25
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile: {type: RuntimeDefault}
+      containers:
+        - name: tablero
+          image: us-central1-docker.pkg.dev/__PROYECTO__/ecocentinela/tablero:__VERSION__
+          ports: [{containerPort: 8080}]
+          env:
+            - {name: GOOGLE_CLOUD_PROJECT, value: "__PROYECTO__"}
+            - {name: DATASET, value: "ecocentinela"}
+            # Sin OAUTH_CLIENT_ID: en GKE el tablero queda de sólo lectura (Google Sign-In exige HTTPS
+            # en un origen autorizado, y esta demo usa la IP del balanceador por HTTP).
+            - name: GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef: {name: tablero-secretos, key: GEMINI_API_KEY}
+          resources:
+            requests: {cpu: 250m, memory: 512Mi}
+            limits: {cpu: 250m, memory: 512Mi}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: {drop: ["ALL"]}
+          readinessProbe:
+            httpGet: {path: /salud, port: 8080}
+            periodSeconds: 5
+          livenessProbe:
+            httpGet: {path: /salud, port: 8080}
+            periodSeconds: 15
+---
+# Cómo el balanceador de Google revisa la salud del tablero y cuánto deja abierta una conexión (WebSocket).
+apiVersion: cloud.google.com/v1
+kind: BackendConfig
+metadata:
+  name: tablero
+  namespace: ecocentinela
+spec:
+  timeoutSec: 900
+  healthCheck:
+    type: HTTP
+    requestPath: /salud
+    port: 8080
+  sessionAffinity:
+    affinityType: GENERATED_COOKIE
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tablero
+  namespace: ecocentinela
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'          # el balanceador llega directo a los pods (NEG)
+    cloud.google.com/backend-config: '{"default": "tablero"}'
+spec:
+  type: ClusterIP
+  selector: {app: tablero}
+  ports: [{port: 80, targetPort: 8080}]
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: tablero
+  namespace: ecocentinela
+  annotations:
+    kubernetes.io/ingress.class: gce                   # balanceador HTTP(S) externo de Google
+spec:
+  defaultBackend:
+    service:
+      name: tablero
+      port: {number: 80}

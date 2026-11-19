@@ -1,0 +1,22 @@
+NAME                           READY   STATUS      RESTARTS   AGE     IP            NODE                                          NOMINATED NODE   READINESS GATES
+pod/ingesta-577b9659c9-6k7dp   1/1     Running     0          6m57s   10.57.0.132   gk3-ecocentinela-nap-1i8yrorh-8941acbd-nf27   <none>           <none>
+pod/ingesta-577b9659c9-gbspd   1/1     Running     0          6m57s   10.57.0.130   gk3-ecocentinela-nap-1i8yrorh-8941acbd-nf27   <none>           <none>
+pod/prueba-carga-flw96         0/1     Completed   0          3m52s   10.57.0.134   gk3-ecocentinela-nap-1i8yrorh-8941acbd-nf27   <none>           <none>
+pod/tablero-86c6d76b7f-sl7c9   1/1     Running     0          6m54s   10.57.0.131   gk3-ecocentinela-nap-1i8yrorh-8941acbd-nf27   <none>           <none>
+
+NAME              TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE     SELECTOR
+service/ingesta   ClusterIP   34.118.239.9     <none>        80/TCP    6m58s   app=ingesta
+service/tablero   ClusterIP   34.118.230.163   <none>        80/TCP    6m54s   app=tablero
+
+NAME                                CLASS    HOSTS   ADDRESS       PORTS   AGE
+ingress.networking.k8s.io/tablero   <none>   *       136.81.51.9   80      6m53s
+
+NAME                                          REFERENCE            TARGETS       MINPODS   MAXPODS   REPLICAS   AGE
+horizontalpodautoscaler.autoscaling/ingesta   Deployment/ingesta   cpu: 1%/70%   2         4         2          6m57s
+
+NAME                                                     POD-SELECTOR   AGE
+networkpolicy.networking.k8s.io/ingesta-solo-generador   app=ingesta    6m57s
+NAME                                          STATUS   ROLES    AGE     VERSION               INTERNAL-IP   EXTERNAL-IP     OS-IMAGE                             KERNEL-VERSION      CONTAINER-RUNTIME
+gk3-ecocentinela-nap-1ei8o07v-b8dd17df-jphh   Ready    <none>   5m29s   v1.36.4-gke.2377000   10.128.0.3    34.68.229.151   Container-Optimized OS from Google   6.12.110+ (amd64)   containerd://2.2.7
+gk3-ecocentinela-nap-1i8yrorh-8941acbd-nf27   Ready    <none>   5m8s    v1.36.4-gke.2377000   10.128.0.4    34.136.99.228   Container-Optimized OS from Google   6.12.110+ (amd64)   containerd://2.2.7
+{"severity": "INFO", "message": "prueba de carga", "componente": "simulador", "n": 1000, "hilos": 16, "segundos": 11.52, "por_segundo": 86.8, "p50_ms": 96.4, "p95_ms": 177.4, "p99_ms": 4851.2, "codigos": {"202": 1000}}
